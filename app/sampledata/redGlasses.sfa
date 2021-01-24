@@ -1,0 +1,61 @@
+{
+  animations: [
+    {
+      path: 'sampledata/redGlasses.fbx',
+    },
+  ],
+  materials: [
+    {
+      name: 'body',
+      parameters: [
+        {
+          baseColor: [
+            0.981012,
+            0.063065999999999997,
+            0.57820300000000002,
+            1,
+          ],
+        },
+        {
+          baseColorMap: null,
+        },
+        {
+          normalMap: null,
+        },
+        {
+          interpolatedColor: null,
+        },
+        {
+          metallic: 0,
+        },
+        {
+          metallicMap: null,
+        },
+        {
+          roughness: 1,
+        },
+        {
+          roughnessMap: null,
+        },
+        {
+          opacity: null,
+        },
+      ],
+      source: 'build/sceneform_sdk/default_materials/fbx_material.sfm',
+    },
+  ],
+  model: {
+    attributes: [
+      'Position',
+      'TexCoord',
+      'Orientation',
+      'BoneIndices',
+      'BoneWeights',
+    ],
+    collision: {},
+    file: 'sampledata/redGlasses.fbx',
+    name: 'redGlasses',
+    recenter: 'root',
+  },
+  version: '0.54:2',
+}
