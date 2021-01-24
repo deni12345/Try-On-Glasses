@@ -1,5 +1,6 @@
 package no.realitylab.arface
 
+import android.Manifest
 import android.app.ActivityManager
 import android.content.Context
 import android.net.Uri
@@ -17,8 +18,15 @@ import kotlinx.android.synthetic.main.activity_glasses.*
 import android.graphics.Bitmap
 import android.os.Environment.getExternalStorageDirectory
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Environment
+import android.os.Handler
+import android.os.HandlerThread
+import android.util.Log
+import android.view.PixelCopy
 import android.view.View
+import androidx.annotation.NonNull
+import com.google.ar.sceneform.ArSceneView
 import java.io.File
 import java.io.FileOutputStream
 import java.util.*
@@ -32,11 +40,11 @@ class GlassesActivity : AppCompatActivity() {
         const val MIN_OPENGL_VERSION = 3.0
     }
 
+    private val requestWritePermission = arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE)
     lateinit var arFragment: FaceArFragment
-    private var faceMeshTexture: Texture? = null
     private var glasses: ArrayList<ModelRenderable> = ArrayList()
     private var faceRegionsRenderable: ModelRenderable? = null
-
+    private lateinit var bitmap: Bitmap
     var faceNodeMap = HashMap<AugmentedFace, AugmentedFaceNode>()
     private var index: Int = 0
     private var changeModel: Boolean = false
@@ -46,7 +54,10 @@ class GlassesActivity : AppCompatActivity() {
         if (!checkIsSupportedDeviceOrFinish()) {
             return
         }
-
+        val hasWritePermission = RuntimePermissionUtil.checkPermissonGranted(
+            this,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        )
         setContentView(R.layout.activity_glasses)
         button_next.setOnClickListener {
             changeModel = !changeModel
@@ -57,15 +68,7 @@ class GlassesActivity : AppCompatActivity() {
             faceRegionsRenderable = glasses.get(index)
         }
 
-        button_snap.setOnClickListener{
-            takeScreenshot()
-        }
-
         arFragment = face_fragment as FaceArFragment
-        Texture.builder()
-            .setSource(this, R.drawable.makeup)
-            .build()
-            .thenAccept { texture -> faceMeshTexture = texture }
 
         ModelRenderable.builder()
             .setSource(this, Uri.parse("yellow_sunglasses.sfb"))
@@ -137,6 +140,38 @@ class GlassesActivity : AppCompatActivity() {
                     }
             }
         }
+
+
+        button_snap.setOnClickListener(object : View.OnClickListener {
+            override fun onClick(view: View?) {
+                val view1 =  arFragment.arSceneView
+                bitmap = Bitmap.createBitmap(view1.width, view1.height,
+                    Bitmap.Config.ARGB_8888)
+                val handlerThread =  HandlerThread("PixelCopier");
+                handlerThread.start();
+                PixelCopy.request(view1, bitmap,{copyResult ->
+                    if (copyResult == PixelCopy.SUCCESS) {
+                        try {
+                            if (bitmap != null) {
+                                if (hasWritePermission) {
+                                    saveScreenshot(bitmap)
+                                } else {
+                                    RuntimePermissionUtil.requestPermission(
+                                        this@GlassesActivity,
+                                        requestWritePermission,
+                                        100
+                                    )
+                                }
+                            }
+                        } catch (e: java.lang.Exception) {
+                            var toast = Toast.makeText(this@GlassesActivity, e.toString(),
+                            Toast.LENGTH_LONG)
+                            toast.show()
+                        }
+
+                    } }, Handler(handlerThread.getLooper()));
+            }
+        })
     }
 
     fun checkIsSupportedDeviceOrFinish() : Boolean {
@@ -159,41 +194,22 @@ class GlassesActivity : AppCompatActivity() {
         }
         return true
     }
-    private fun takeScreenshot(){
-        val now = Date()
-        android.text.format.DateFormat.format("yyyy-MM-dd_hh:mm:ss", now)
+
+    private fun saveScreenshot(bitmap: Bitmap) {
+        // Save the screenshot
 
         try {
-            // image naming and path  to include sd card  appending name you choose for file
-            val mPath = Environment.getExternalStorageDirectory().toString() + "/" + now + ".jpg"
-
-            // create bitmap screen capture
-            val v1 = image_view
-            v1.isDrawingCacheEnabled = true
-            val bitmap = Bitmap.createBitmap(v1.drawingCache)
-            v1.isDrawingCacheEnabled = false
-
-            val imageFile = File(mPath)
-
-            val outputStream = FileOutputStream(imageFile)
-            val quality = 100
-            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-            outputStream.flush()
-            outputStream.close()
-
-            //openScreenshot(imageFile)
-        } catch (e: Throwable) {
-            // Several error may come out with file handling or DOM
+            val file = ScreenShott.getInstance()
+                .saveScreenshotToPicturesFolder(this@GlassesActivity, bitmap, "my_screenshot")
+            // Display a toast
+            Toast.makeText(
+                this@GlassesActivity, "Bitmap Saved at " + file.absolutePath,
+                Toast.LENGTH_SHORT
+            ).show()
+        } catch (e: Exception) {
             e.printStackTrace()
         }
 
-    }
 
-    private fun openScreenshot(imageFile: File) {
-        val intent = Intent()
-        intent.action = Intent.ACTION_VIEW
-        val uri = Uri.fromFile(imageFile)
-        intent.setDataAndType(uri, "image/*")
-        startActivity(intent)
     }
 }
